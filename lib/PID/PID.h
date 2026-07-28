@@ -1,36 +1,30 @@
 #ifndef PID_HHH
 #define PID_HHH
 
-#include <stdlib.h>
+#include <Arduino.h>
 #include <AccelStepper.h>
 
+extern const int STEP_PIN;
+extern const int DIR_PIN;
 
-const int STEP_PIN = 3;
-const int DIR_PIN  = 2;
-long MAX_POS = 1750;
-long MIN_POS = 0;
+extern long MAX_POS;
+extern long MIN_POS;
 
-const double MAX_SPEED = 150.0;  // steps/second
+extern const double MAX_SPEED;
 
-// PID tuning values
-double kp = 5.0;
-double ki = 0.0;
-double kd = 0.0;
+extern double kp;
+extern double ki;
+extern double kd;
 
-double targetHeightInches = 8.0;
+extern double targetHeightInches;
+extern double previousError;
+extern double integral;
+extern double commandedSpeed;
 
-// Persistent PID state
-double previousError = 0.0;
-double integral = 0.0;
+extern AccelStepper stepper;
 
-// Persistent motor command
-double commandedSpeed = 0.0;
-
-AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
-
-
-double applySpeedLimit(double requestedspeed);
-double PID(double kp, double ki, double kd, double setpoint, double input, double*prev_err, double*integral, double dt);
+double applySpeedLimit(double requestedSpeed);
+double PID(double kp, double ki, double kd, double setpoint, double input, double* prev_err, double* integral, double dt);
 void PID_setup();
 
 #endif
