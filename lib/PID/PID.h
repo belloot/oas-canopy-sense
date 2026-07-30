@@ -12,6 +12,8 @@ extern long MIN_POS;
 
 extern const double MAX_SPEED;
 
+extern const double I_MAX;
+
 extern double kp;
 extern double ki;
 extern double kd;

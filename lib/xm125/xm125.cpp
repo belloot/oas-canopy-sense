@@ -35,6 +35,8 @@ bool XM125Radar::begin() {
 
     sensor.setCommand(SFE_XM125_DISTANCE_APPLY_CONFIGURATION);
     sensor.busyWait();
+    sensor.setCommand(SFE_XM125_DISTANCE_CALIBRATE);
+    sensor.busyWait();
 
     return true;
 }
