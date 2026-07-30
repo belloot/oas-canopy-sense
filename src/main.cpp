@@ -11,17 +11,13 @@
 
 #define RADAR_SDA 40
 #define RADAR_SCL 41
+#define XM125_RST 4
 
 volatile float sharedHeightInches = -1.0f;
 portMUX_TYPE heightMux = portMUX_INITIALIZER_UNLOCKED;
 
 TwoWire RadarWire = TwoWire(1);
 XM125Radar radar1(0x51, RadarWire);
-// XM125Radar radar2(SFE_XM125_I2C_ADDRESS,RadarWire);
-
-// Variables for old filtering [NOT USING]
-// float filtered_mm = -1.0;
-// float filtered_mm2 = -1.0;
 
 // For median filtering [USING]
 // ---------------------
@@ -39,22 +35,23 @@ int sample_count = 0;
 int height_level = -1;
 // ----------------------
 
-const float alpha = 0.3;
-// const float alpha2 = 0.3;
+const float alpha = 0.5;
 uint32_t tInit = 0;
 
 TaskHandle_t radarTaskHandle = nullptr;
+TaskHandle_t pidTaskHandle = nullptr;
+TaskHandle_t stepperTaskHandle = nullptr;
+
+hw_timer_t* stepperTimer = nullptr;
+constexpr uint32_t STEPPER_SERVICE_HZ = 3000;
 
 void i2cScan(TwoWire& wireBus) {
     byte error;
     int found = 0;
-
     Serial.println("Scanning...");
-
     for (byte address = 1; address < 127; address++) {
         wireBus.beginTransmission(address);
         error = wireBus.endTransmission();
-
         if (error == 0) {
             Serial.print("I2C device found at 0x");
             if (address < 16) {
@@ -70,26 +67,15 @@ void i2cScan(TwoWire& wireBus) {
             Serial.println(address, HEX);
         }
     }
-
-    if (found == 0) {
-        Serial.println("No I2C devices found.");
-    } else {
-        Serial.printf("Done. Found %d device(s).\n", found);
-    }
-
+    if (found == 0) {Serial.println("No I2C devices found.");
+    }else {Serial.printf("Done. Found %d device(s).\n", found);}
     Serial.println();
 }
 
 float getMedian(float raws[num_raws]) {
-    // Copy of array to work on
     float temp[num_raws];
-
-    for (int i = 0; i < num_raws; i++) {
-        temp[i] = raws[i];
-    }
-
-    // Sort in ascending order
-    for (int i = 0; i < (num_raws - 1); i++) {
+    for (int i = 0; i < num_raws; i++) {temp[i] = raws[i];}//cpy array
+    for (int i = 0; i < (num_raws - 1); i++) {//le sort
         for (int j = i + 1; j < num_raws; j++) {
             if (temp[j] < temp[i]) {
                 float swap = temp[i];
@@ -98,7 +84,6 @@ float getMedian(float raws[num_raws]) {
             }
         }
     }
-
     return temp[num_raws / 2]; // the median
 }
 
@@ -108,28 +93,6 @@ void radarTask(void* parameter) {
 
         int32_t raw_mm = m.p0_mm;
         char buf[32];
-
-        /*
-        One stage EMA filter
-
-        if (raw_mm >= 0) {
-            if (filtered_mm < 0) {
-                filtered_mm = raw_mm;
-            } else {
-                filtered_mm = alpha * raw_mm + (1.0 - alpha) * filtered_mm;
-            }
-            if(filtered_mm>lowbound && filtered_mm<highbound){
-                snprintf(buf, sizeof(buf), "Good|%d", (int32_t)(filtered_mm + 0.5));
-            }else if(filtered_mm<=lowbound){
-                snprintf(buf, sizeof(buf), "Low |%d", (int32_t)(filtered_mm + 0.5));
-            }else if(filtered_mm>=highbound){
-                snprintf(buf, sizeof(buf), "High|%d", (int32_t)(filtered_mm + 0.5));
-            }
-        } else {
-            snprintf(buf, sizeof(buf), "NOPEAK");
-        }
-        */
-
         // (Median of last num_raws) + (EMA of median filter)
         if (raw_mm >= 0 && raw_mm < 1000) {
             // Circular/ring buffer
@@ -150,6 +113,8 @@ void radarTask(void* parameter) {
             sharedHeightInches = median_ema_inches;
             taskEXIT_CRITICAL(&heightMux);
 
+            if (pidTaskHandle != nullptr) xTaskNotifyGive(pidTaskHandle);
+
             snprintf(buf, sizeof(buf), "%.3f", median_ema_inches /*(int32_t)(median_ema_mm + 0.5)*/);
         } else if (raw_mm >= 1000) {
             snprintf(buf, sizeof(buf), ">= 1000!");
@@ -158,21 +123,6 @@ void radarTask(void* parameter) {
         }
 
         vTaskDelay(pdMS_TO_TICKS(50));
-
-        // XM125Radar::RadarMeasurement m2 = radar2.measure();
-        // int32_t raw_mm2 = m2.p0_mm;
-        // char buf2[32];
-        // if (raw_mm2 >= 0) {
-        //     if (filtered_mm2 < 0) {
-        //         filtered_mm2 = raw_mm2;
-        //     } else {
-        //         filtered_mm2 = alpha2 * raw_mm2 + (1.0 - alpha2) * filtered_mm2;
-        //     }
-        //     snprintf(buf2, sizeof(buf2), "%d", (int32_t)(filtered_mm2 + 0.5));
-        // } else {
-        //     snprintf(buf2, sizeof(buf2), "NOPEAK");
-        // }
-
         uint32_t tNow = millis() - tInit;
 
         char buffer[64];   // expand size for two radars [WAITING FOR ADDITIONAL RADARS]
@@ -181,59 +131,88 @@ void radarTask(void* parameter) {
         height_level = heightIndicatorUpdate(median_ema_inches);
 
         Serial.printf("%lu,0x%02X,%lu,%lu,%lu,%ld,%.1f,%.3f,%ld,%lu,%lu,%lu,%lu,%lu,%d,%d\n", m.frame_id, m.i2cAddress, m.loop_start_ms, m.retCode, m.distances, m.p0_mm, median_ema_mm, median_ema_inches, m.p0_strength, m.t_setup, m.t_num, m.t_p0dist, m.t_p0str, m.total_ms, tNow, height_level);
-
-        // For second SparkFun XM125 [NOT AVAILABLE YET]
-        // Serial.printf("%lu,0x%02X,%lu,%lu,%lu,%ld,%ld,%ld,%lu,%lu,%lu,%lu,%lu,\n", m2.frame_id, m2.i2cAddress, m2.loop_start_ms, m2.retCode, m2.distances, m2.p0_mm, (int32_t)(filtered_mm2 + 0.5), m2.p0_strength, m2.t_setup, m2.t_num, m2.t_p0dist, m2.t_p0str, m2.total_ms);
-
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
-void stepperTask(void* parameter) {
-    static unsigned long prevMs = millis();
+void pidTask(void* parameter) {
+    constexpr double HEIGHT_DEADBAND = 0.15;
+    uint32_t previousMeasurementMs = millis();
 
     while (true) {
-        unsigned long nowMs = millis();
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        if (nowMs - prevMs >= 20UL) {
-            double dt = (nowMs - prevMs) / 1000.0;
-            prevMs = nowMs;
+        uint32_t nowMs = millis();
+        double dt = (nowMs - previousMeasurementMs) / 1000.0;
+        previousMeasurementMs = nowMs;
 
-            float measuredHeight;
+        float measuredHeight;
 
-            taskENTER_CRITICAL(&heightMux);
-            measuredHeight = sharedHeightInches;
-            taskEXIT_CRITICAL(&heightMux);
+        taskENTER_CRITICAL(&heightMux);
+        measuredHeight = sharedHeightInches;
+        taskEXIT_CRITICAL(&heightMux);
 
-            if (measuredHeight >= 0.0f) {
-                double deadband_err = targetHeightInches - measuredHeight;
-                const double HEIGHT_DEADBAND = 0.15;
+        double newSpeed = 0.0;
 
-                if (fabs(deadband_err) <= HEIGHT_DEADBAND) {
-                    commandedSpeed = 0.0;
-                    integral = 0.0;
-                } else {
-                    double pidPercent = PID(kp, ki, kd, targetHeightInches, measuredHeight, &previousError, &integral, dt);
-                    commandedSpeed = (pidPercent / 100.0) * MAX_SPEED;
-                    commandedSpeed = applySpeedLimit(commandedSpeed);
-                }
+        if (measuredHeight >= 0.0f && dt > 0.0) {
+            double error = targetHeightInches - measuredHeight;
 
-                stepper.setSpeed(commandedSpeed);
+            if (fabs(error) <= HEIGHT_DEADBAND) {
+                integral = 0.0;
+                previousError = error;
             } else {
-                commandedSpeed = 0.0;
-                stepper.setSpeed(0.0);
+                double pidPercent = PID(kp, ki, kd, targetHeightInches, measuredHeight, &previousError, &integral, dt);
+                newSpeed = applySpeedLimit((pidPercent / 100.0) * MAX_SPEED);
             }
+        } else {
+            integral = 0.0;
+            previousError = 0.0;
+        }
+
+        taskENTER_CRITICAL(&heightMux);
+        commandedSpeed = newSpeed;
+        taskEXIT_CRITICAL(&heightMux);
+    }
+}
+
+void ARDUINO_ISR_ATTR stepperTimerISR() {
+    BaseType_t higherPriorityTaskWoken = pdFALSE;
+    if (stepperTaskHandle != nullptr)vTaskNotifyGiveFromISR(stepperTaskHandle, &higherPriorityTaskWoken);
+    if (higherPriorityTaskWoken == pdTRUE) portYIELD_FROM_ISR();
+}
+
+void stepperTask(void* parameter) {
+    double appliedSpeed = 0.0;
+
+    while (true) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        double requestedSpeed;
+
+        taskENTER_CRITICAL(&heightMux);
+        requestedSpeed = commandedSpeed;
+        taskEXIT_CRITICAL(&heightMux);
+
+        if (requestedSpeed != appliedSpeed) {
+            appliedSpeed = requestedSpeed;
+            stepper.setSpeed(appliedSpeed);
         }
 
         stepper.runSpeed();
-        taskYIELD();
     }
 }
+
 void setup() {
     Serial.begin(115200);
-    gpio_pullup_en(GPIO_NUM_4);
-    gpio_pullup_en(GPIO_NUM_5);
-    delay(2000);
+    gpio_pullup_en((gpio_num_t)RADAR_SDA);
+    gpio_pullup_en((gpio_num_t)RADAR_SCL);
+    delay(100);
+
+    pinMode(XM125_RST, OUTPUT);
+    digitalWrite(XM125_RST, LOW);
+    delay(100);
+    digitalWrite(XM125_RST, HIGH);
+    delay(100);
 
     Wire.begin(OLED_SDA, OLED_SCL);
     RadarWire.begin(RADAR_SDA, RADAR_SCL);
@@ -243,21 +222,25 @@ void setup() {
 
     while (!radar1.begin())delay(1000);
 
-    // while (!radar2.begin())delay(1000);
-
     OLED_init();
     Serial.println("OLED INIT DONE");
-    delay(50);
 
     heightIndicatorInit();
     Serial.println("HEIGHT INDICATOR INIT DONE");
-    delay(50);
+
+    PID_setup();
 
     tInit = millis();
     Serial.println("RETRIEVED TIME INIT");
 
+    xTaskCreatePinnedToCore(pidTask, "PIDTask", 4096, nullptr, 2, &pidTaskHandle, 0);
+    xTaskCreatePinnedToCore(stepperTask, "StepperTask", 4096, nullptr, 3, &stepperTaskHandle, 0);
     xTaskCreatePinnedToCore(radarTask, "RadarTask", 8192, nullptr, 1, &radarTaskHandle, 1);
-    xTaskCreatePinnedToCore(stepperTask, "StepperTask", 4096, nullptr, 1, nullptr, 0);
+
+    stepperTimer = timerBegin(0, 80, true);
+    timerAttachInterrupt(stepperTimer, &stepperTimerISR, true);
+    timerAlarmWrite(stepperTimer, 1000000UL / STEPPER_SERVICE_HZ, true);
+    timerAlarmEnable(stepperTimer);
 }
 
 void loop() {

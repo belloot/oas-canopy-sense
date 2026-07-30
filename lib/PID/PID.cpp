@@ -3,17 +3,18 @@
 const int STEP_PIN = 3;
 const int DIR_PIN = 2;
 
-long MAX_POS = 1750;
+long MAX_POS = 10000000*16;//1000 full steps. 16 means the servo driver is currently set to 1/16th micro stepping
 long MIN_POS = 0;
 
-const double MAX_SPEED = 150.0;
+const double MAX_SPEED = 1000.0*16.0;// full steps
+const double I_MAX = 1;
 
 // PID tuning values
-double kp = 5.0;
-double ki = 0.0;
-double kd = 0.0;
+double kp = 30.0;//le in percents
+double ki = 0.15;
+double kd = 5.0;
 
-double targetHeightInches = 8.0;
+double targetHeightInches = 10.0;
 
 // Persistent PID state
 double previousError = 0.0;
@@ -23,6 +24,7 @@ double integral = 0.0;
 double commandedSpeed = 0.0;
 
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
+
 
 // Apply software limits
 double applySpeedLimit(double requestedSpeed) {
@@ -38,8 +40,6 @@ double PID(double kp, double ki, double kd, double setpoint, double input, doubl
     double err = setpoint - input;
 
     *integral += err * dt;
-
-    const double I_MAX = 50.0;
 
     if (*integral > I_MAX) *integral = I_MAX;
     if (*integral < -I_MAX) *integral = -I_MAX;
