@@ -59,7 +59,7 @@ def get_radar(addr):
 
     return radars[addr]
 
-log_file = open("data_logs/baseline_with_LEDs/basic_bed_full_2", "a", buffering=1)  # line-buffered
+log_file = open("data_logs/ground/mobile_20", "a", buffering=1)  # line-buffered
 
 while True:
     try:
