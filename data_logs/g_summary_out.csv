@@ -1,0 +1,4 @@
+environment,bed,height,point,file,samples,valid_samples,invalid_samples,invalid_pct,raw_mean,raw_median,raw_std,raw_bias,raw_mae,raw_rmse,filtered_mean,filtered_median,filtered_std,filtered_bias,filtered_mae,filtered_rmse
+ground_stationary,,12,,stationary_12.txt,194,194,0,0,12.076,12.087,0.022,0.076,0.076,0.079,12.079,12.082,0.01,0.079,0.079,0.079
+ground_stationary,,16,,stationary_16.txt,192,192,0,0,16.03,16.024,0.025,0.03,0.034,0.039,16.03,16.025,0.012,0.03,0.03,0.032
+ground_stationary,,20,,stationary_20.txt,192,192,0,0,20.041,20.039,0.03,0.041,0.043,0.051,20.042,20.04,0.015,0.042,0.042,0.045

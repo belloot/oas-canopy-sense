@@ -57,7 +57,7 @@ int32_t XM125Radar::detectorReadingSetupFast() {
     if (errorStatus != 0) return 4;
 
     sftk_delay_ms(SETUPDELAY);
-
+    
     sensor.getMeasureDistanceError(measDistErr);
     if (measDistErr == 1) return 5;
 

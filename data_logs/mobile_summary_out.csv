@@ -1,0 +1,2 @@
+environment,bed,height,point,file,samples,valid_samples,invalid_samples,invalid_pct,raw_mean,raw_median,raw_std,raw_bias,raw_mae,raw_rmse,filtered_mean,filtered_median,filtered_std,filtered_bias,filtered_mae,filtered_rmse
+bed,1,16,1,mobile_16_1.txt,165,164,1,0.606,16.119,16.181,0.172,0.119,0.188,0.209,16.103,16.158,0.148,0.103,0.172,0.18
