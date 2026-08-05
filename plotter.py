@@ -62,7 +62,7 @@ def get_radar(addr):
 
     return radars[addr]
 
-log_file = open("data_logs/mobile_field_dataset_calibrated/mobile_12_3.txt", "a", buffering=1)  # line-buffered
+log_file = open("data_logs/mobile_field_dataset_calibrated/bed1/mobile_20_3.txt", "a", buffering=1)  # line-buffered
 #8 speed
 
 while True:
