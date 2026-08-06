@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import time 
 
-PORT = 'COM5'
+PORT = 'COM8'
 BAUD_RATE = 115200
 
 MAX_POINTS = 50
@@ -62,8 +62,7 @@ def get_radar(addr):
 
     return radars[addr]
 
-log_file = open("data_logs/mobile_field_dataset_calibrated/bed1/mobile_20_3.txt", "a", buffering=1)  # line-buffered
-#8 speed
+log_file = open("data_logs/mobile_temp_tests/table_20_3.txt", "a", buffering=1)  # line-buffered
 
 while True:
     try:
@@ -78,7 +77,7 @@ while True:
         # CSV:
         # frame,address,loop_start,retCode,distances,raw_mm,filtered_mm,strength,...
         # trailing comma creates an empty last item, so accept 14 or 13
-        if len(parts) < 16:
+        if len(parts) < 17:
             continue
 
         frame_id = int(parts[0])+frameIDOffset
@@ -87,13 +86,17 @@ while True:
         
         retcode = int(parts[3])
         num_distances = int(parts[4])
-        raw_mm = int(parts[5])
-        filtered_mm = float(parts[6])
-        filtered_in = float(parts[7])
-        p0_str = int(parts[8])
+        raw_mm_0 = int(parts[5])
+        raw_mm_1 = int(parts[6])
+        raw_mm_2 = int(parts[7])
+        filtered_mm_0 = float(parts[8])
+        filtered_in_0 = float(parts[9])
+        p0_str = int(parts[10])
+        p1_str = int(parts[11])
+        p2_str = int(parts[12])
         
-        tnow = int(parts[14])+tnowOffset
-        height_level = int(parts[15])
+        tnow = int(parts[15])+tnowOffset
+        height_level = int(parts[16])
 
         # # Extra filtering before logging
         # if raw_mm < 0 or len(filtered_values) == 0:
@@ -107,9 +110,9 @@ while True:
         radar = get_radar(addr)
 
         radar["frames"].append(frame_id)
-        radar["latest"] = filtered_in
-        radar["distances_filtered"].append(filtered_in)
-        radar["distances_raw"].append(raw_mm/25.4)
+        radar["latest"] = filtered_in_0
+        radar["distances_filtered"].append(filtered_in_0)
+        radar["distances_raw"].append(raw_mm_0/25.4)
         # radar["extra_distances"].append(extra_filtered_mm)
 
         if len(radar["frames"]) > MAX_POINTS:
@@ -130,7 +133,7 @@ while True:
 
         display = ""
 
-        if raw_mm <= 0 or not (150 <= raw_mm <= 1600):
+        if raw_mm_0 <= 0 or not (200 <= raw_mm_0 <= 1000):
             text_display.set_text(f"Radar {addr}: No Peak Detected")
         else:
             for a, r in radars.items():
@@ -145,8 +148,8 @@ while True:
 
         plt.pause(0.01)
         if log_file.tell() == 0:
-            log_file.write("frame id,address,retcode,numDistances,raw_mm,medianEMA_mm,medianEMA_in,p0 str,time now,LED status\n")
-        log_file.write(f"{frame_id},{addr},{retcode},{num_distances},{raw_mm},{filtered_mm},{filtered_in},{p0_str},{tnow},{height_level}\n")
+            log_file.write("frame id,address,retcode,numDistances,raw_mm_0,raw_mm_1,raw_mm_2,medianEMA_mm_0,medianEMA_in_0,p0_str,p1_str,p2_str,time now,LED status\n")
+        log_file.write(f"{frame_id},{addr},{retcode},{num_distances},{raw_mm_0},{raw_mm_1},{raw_mm_2},{filtered_mm_0},{filtered_in_0},{p0_str},{p1_str},{p2_str},{tnow},{height_level}\n")
 
     except serial.SerialException:
         frameIDOffset=frame_id+1

@@ -17,7 +17,7 @@ volatile float sharedHeightInches = -1.0f;
 portMUX_TYPE heightMux = portMUX_INITIALIZER_UNLOCKED;
 
 TwoWire RadarWire = TwoWire(1);
-XM125Radar radar1(0x51, RadarWire);
+XM125Radar radar1(0x52, RadarWire);
 
 // For median filtering [USING]
 // ---------------------
@@ -130,20 +130,24 @@ void radarTask(void* parameter) {
         OLED_writeText(buffer, 4, u8x8_font_chroma48medium8_r);
         height_level = heightIndicatorUpdate(median_ema_inches);
 
-        Serial.printf("%lu,0x%02X,%lu,%lu,%lu,%ld,%.1f,%.3f,%ld,%lu,%lu,%lu,%lu,%lu,%d,%d\n",
+        Serial.printf("%lu,0x%02X,%lu,%lu,%lu,%ld,%ld,%ld,%.1f,%.3f,%ld,%ld,%ld,%lu,%lu,%d,%d\n",
         m.frame_id,
         m.i2cAddress,
         m.loop_start_ms,
         m.retCode,
         m.distances,
         m.p0_mm,
+        m.p1_mm,
+        m.p2_mm,
         median_ema_mm,
         median_ema_inches,
         m.p0_strength,
+        m.p1_strength,
+        m.p2_strength,
         m.t_setup,
-        m.t_num,
-        m.t_p0dist,
-        m.t_p0str,
+        //m.t_num,
+        //m.t_dist,
+        //m.t_str,
         m.total_ms,
         tNow,
         height_level

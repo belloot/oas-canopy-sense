@@ -83,11 +83,15 @@ XM125Radar::RadarMeasurement XM125Radar::measure() {
     m.retCode = 0;
     m.distances = 0;
     m.p0_mm = -1;
+    m.p1_mm = -1;
+    m.p2_mm = -1;
     m.p0_strength = 0;
+    m.p1_strength = 0;
+    m.p2_strength = 0;
     m.t_setup = 0;
     m.t_num = 0;
-    m.t_p0dist = 0;
-    m.t_p0str = 0;
+    m.t_dist = 0;
+    m.t_str = 0;
     m.total_ms = 0;
 
     uint32_t t0 = millis();
@@ -119,20 +123,42 @@ XM125Radar::RadarMeasurement XM125Radar::measure() {
 
     sensor.busyWait();
     if (m.retCode == 0 && m.distances > 0) {
-        uint32_t rawDistance = 0;
-        int32_t rawStrength = 0;
+        uint32_t rawDistance_0 = 0;
+        int32_t rawStrength_0 = 0;
+
+        uint32_t rawDistance_1 = 0;
+        int32_t rawStrength_1 = 0;
+
+        uint32_t rawDistance_2 = 0;
+        int32_t rawStrength_2 = 0;
 
         t0 = millis();
-        if (sensor.getPeak0Distance(rawDistance) == ksfTkErrOk) {
-            m.p0_mm = (int32_t)rawDistance;
+        if (sensor.getPeak0Distance(rawDistance_0) == ksfTkErrOk) {
+            m.p0_mm = (int32_t)rawDistance_0;
+
+            if (m.distances > 1 && sensor.getPeak1Distance(rawDistance_1) == ksfTkErrOk) {
+                m.p1_mm = (int32_t)rawDistance_1;
+
+                if (m.distances > 2 && sensor.getPeak2Distance(rawDistance_2) == ksfTkErrOk) {
+                    m.p2_mm = (int32_t)rawDistance_2;
+                }
+            }
         }
-        m.t_p0dist = millis() - t0;
+        m.t_dist = millis() - t0;
 
         t0 = millis();
-        if (sensor.getPeak0Strength(rawStrength) == ksfTkErrOk) {
-            m.p0_strength = rawStrength / 1000;
+        if (sensor.getPeak0Strength(rawStrength_0) == ksfTkErrOk) {
+            m.p0_strength = (int32_t)rawStrength_0;
+
+            if (sensor.getPeak1Strength(rawStrength_1) == ksfTkErrOk) {
+                m.p1_strength = (int32_t)rawStrength_1;
+
+                if (sensor.getPeak2Strength(rawStrength_2) == ksfTkErrOk) {
+                    m.p2_strength = (int32_t)rawStrength_2;
+                }
+            }
         }
-        m.t_p0str = millis() - t0;
+        m.t_str = millis() - t0;
     }
 
     m.total_ms = millis() - m.loop_start_ms;

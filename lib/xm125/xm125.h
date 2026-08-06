@@ -44,11 +44,15 @@ public:
         uint32_t retCode;
         uint32_t distances;
         int32_t p0_mm;
+        int32_t p1_mm;
+        int32_t p2_mm;
         int32_t p0_strength;
+        int32_t p1_strength;
+        int32_t p2_strength;
         uint32_t t_setup;
         uint32_t t_num;
-        uint32_t t_p0dist;
-        uint32_t t_p0str;
+        uint32_t t_dist;
+        uint32_t t_str;
         uint32_t total_ms;
     };
 
